@@ -81,17 +81,8 @@ pub async fn collect_river_data(args: &CollectArgs) {
     // バッチごとにタイルを処理
     for (i, batch) in tiles.chunks(*batch_size).enumerate() {
         let river_base_url = river_base_url.clone();
-        pb.set_message(format!(
-            "Fetching data for batch {} of {}...",
-            i + 1,
-            tiles.len() / batch_size
-        ));
         let lines = fetch_ml(river_base_url, batch, *rv_rcl_flags, *rv_ctg_flags, &client).await;
 
-        pb.set_message(format!(
-            "Collecting sections and nodes for batch {}...",
-            i + 1
-        ));
         let sections = collect_sections(&lines);
         let nodes = collect_nodes(
             &lines,
@@ -102,7 +93,6 @@ pub async fn collect_river_data(args: &CollectArgs) {
         )
             .await;
 
-        pb.set_message(format!("Writing nodes and sections for batch {}...", i + 1));
         write_nodes(&nodes_path, &nodes).await;
         write_sections(&dir_path, sections).await;
 
@@ -117,7 +107,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
 
     pb.finish_with_message("Finished processing all tiles!");
 
-    let mut spinner = ProgressBar::new_spinner();
+    let spinner = ProgressBar::new_spinner();
     // ノード情報の重複削除
     spinner.set_message("Deduplicating nodes...");
     deduplicate_nodes(&nodes_path);
