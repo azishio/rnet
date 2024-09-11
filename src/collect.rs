@@ -108,10 +108,12 @@ pub async fn collect_river_data(args: &CollectArgs) {
     pb.finish_with_message("Finished processing all tiles!");
 
     let spinner = ProgressBar::new_spinner();
+    spinner.enable_steady_tick(std::time::Duration::from_millis(100));
+
     // ノード情報の重複削除
     spinner.set_message("Deduplicating nodes...");
     deduplicate_nodes(&nodes_path);
-    spinner.finish_with_message("Deduplication completed!");
+    spinner.finish_with_message("Process completed!");
 }
 
 bitflags! {
