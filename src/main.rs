@@ -18,8 +18,9 @@ struct Cli {
 /// サブコマンドを定義する構造体
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// 河川データを収集するサブコマンド
+    /// 河川データを収集し、書き出す
     Collect(CollectArgs),
+    ///ドロネー三角分割を行った際のノード間のつながりを書き出す
     Delaunay {
         /// 河川データのriver_node.csvのパス
         #[arg(short, long)]

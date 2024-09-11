@@ -104,7 +104,7 @@ pub(crate) fn collect_delaunay(nodes_path: &String) {
         read
     };
 
-    spinner.set_message("Creating Delaunay triangulation...");
+    spinner.set_message("Calculating Delaunay triangulation...");
     let triangulation = DelaunayTriangulation::<RiverNode>::bulk_load(nodes).expect("Failed to create Delaunay triangulation");
 
     spinner.set_message("Writing result...");
