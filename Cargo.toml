@@ -14,9 +14,10 @@ hilbert_index = "0.2.0"
 image = "0.25.2"
 indicatif = "0.17.8"
 moka = { version = "0.12.8", features = ["future"] }
-polars = "0.42.0"
-polars-lazy = "0.42.0"
+polars = { version = "0.42.0", features = ["lazy"] }
+polars-lazy = { version = "0.42.0", features = ["csv"] }
 rayon = "1.10.0"
 reqwest = "0.12.7"
 rustc-hash = "2.0.0"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros", "fs"] }
+clap = { version = "4.5.17", features = ["derive"] }
