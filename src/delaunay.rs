@@ -92,16 +92,16 @@ pub(crate) fn collect_delaunay(nodes_path: &String) {
         let min_lat: f64 = 20. + 25. / 60. + 31. / 3600.;
 
         let mut bounds = vec![
-            RiverNode::new(calc_hilbert_index(max_long.to_radians(), max_lat.to_radians()), min_long, min_lat),
-            RiverNode::new(calc_hilbert_index(min_long.to_radians(), max_lat.to_radians()), max_long, min_lat),
-            RiverNode::new(calc_hilbert_index(max_long.to_radians(), min_lat.to_radians()), min_long, max_lat),
-            RiverNode::new(calc_hilbert_index(min_long.to_radians(), min_lat.to_radians()), max_long, max_lat),
+            RiverNode::new(calc_hilbert_index(max_long, max_lat), min_long, min_lat),
+            RiverNode::new(calc_hilbert_index(min_long, max_lat), max_long, min_lat),
+            RiverNode::new(calc_hilbert_index(max_long, min_lat), min_long, max_lat),
+            RiverNode::new(calc_hilbert_index(min_long, min_lat), max_long, max_lat),
         ];
 
-        let mut readed = read_nodes(nodes_path);
-        readed.append(&mut bounds);
+        let mut read = read_nodes(nodes_path);
+        read.append(&mut bounds);
 
-        readed
+        read
     };
 
     spinner.set_message("Creating Delaunay triangulation...");

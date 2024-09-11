@@ -45,9 +45,6 @@ pub async fn collect_river_data(args: &CollectArgs) {
     let river_base_url = Arc::new(river_base_url.clone());
     let dem_base_url = Arc::new(dem_base_url.clone());
     let dem_zoom_lv = ZoomLv::parse(*zoom_lv).expect("Failed to parse ZoomLv");
-    let dir_path = mokuroku
-        .parent()
-        .expect("Failed to get mokuroku's parent directory");
 
     spinner.set_message("Reading mokuroku.csv...");
     let tiles = read_tile_list(&mokuroku);
@@ -57,8 +54,8 @@ pub async fn collect_river_data(args: &CollectArgs) {
         .max_capacity(50)
         .build_with_hasher(FxBuildHasher);
 
-    let nodes_path = dir_path.join("river_node.csv");
-    let sections_path = dir_path.join("river_section.csv");
+    let nodes_path = mokuroku.with_file_name("river_node.csv");
+    let sections_path = mokuroku.with_file_name("river_section.csv");
 
     // ヘッダーの書き込み
     {
@@ -94,7 +91,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
             .await;
 
         write_nodes(&nodes_path, &nodes).await;
-        write_sections(&dir_path, sections).await;
+        write_sections(&sections_path, &sections).await;
 
         pb.inc(batch.len() as u64);
 
@@ -279,7 +276,7 @@ fn read_property(p: JsonObject) -> (RvRclFlags, RvCtgFlags) {
 
 /// ヒルベルトインデックスを計算
 pub fn calc_hilbert_index(long: f64, lat: f64) -> u32 {
-    let (x, y) = ll2pixel((long, lat), ZoomLv::Lv18);
+    let (x, y) = ll2pixel((long.to_radians(), lat.to_radians()), ZoomLv::Lv18);
     let h = [x as usize, y as usize].to_hilbert_index(26);
     h as u32
 }
@@ -365,7 +362,7 @@ async fn fetch_ml(
                                         let lat = p[1];
 
                                         let h =
-                                            calc_hilbert_index(long.to_radians(), lat.to_radians());
+                                            calc_hilbert_index(long, lat);
 
                                         (h, long, lat)
                                     })
@@ -577,12 +574,12 @@ async fn write_sections_header(path: &Path) {
 }
 
 /// リレーション情報の書き込み
-async fn write_sections(output_dir: &Path, lines: Vec<Section>) {
+async fn write_sections(path: &Path, lines: &Vec<Section>) {
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .append(true)
-        .open(output_dir.join("river_section.csv"))
+        .open(path)
         .await
         .expect("Failed to create river_section.csv");
 
