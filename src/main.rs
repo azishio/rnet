@@ -3,6 +3,8 @@ use clap::{Parser, Subcommand};
 use crate::collect::collect_river_data;
 
 mod collect;
+mod delaunay;
+
 /// メインコマンドの構造体
 #[derive(Parser, Debug)]
 #[command(name = "MyApp")]
@@ -18,6 +20,11 @@ struct Cli {
 enum Commands {
     /// 河川データを収集するサブコマンド
     Collect(CollectArgs),
+    Delaunay {
+        /// 河川データのriver_node.csvのパス
+        #[arg(short, long)]
+        input: String
+    },
 }
 
 /// `collect` サブコマンドの引数を定義する構造体
@@ -59,6 +66,7 @@ async fn main() {
 
     match &cli.command {
         Commands::Collect(args) => collect_river_data(args).await, // collectサブコマンドが呼ばれた場合
+        Commands::Delaunay { input } => delaunay::collect_delaunay(input), // delaunayサブコマンドが呼ばれた場合
     }
 }
 

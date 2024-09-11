@@ -278,7 +278,7 @@ fn read_property(p: JsonObject) -> (RvRclFlags, RvCtgFlags) {
 }
 
 /// ヒルベルトインデックスを計算
-fn calc_hilbert_index(long: f64, lat: f64) -> u32 {
+pub fn calc_hilbert_index(long: f64, lat: f64) -> u32 {
     let (x, y) = ll2pixel((long, lat), ZoomLv::Lv18);
     let h = [x as usize, y as usize].to_hilbert_index(26);
     h as u32
