@@ -21,43 +21,36 @@ use rustc_hash::FxBuildHasher;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 
-/// 河川データの収集
-pub async fn collect_river_data(
-    mokuroku: String,
-    batch_size: usize,
-    line: String,
-    category: String,
-    river_base_url: String,
-    dem_base_url: String,
-    zoom_lv: u8,
-) {
+use crate::CollectArgs;
+
+/// collectサブコマンド用の関数
+pub async fn collect_river_data(args: &CollectArgs) {
     let spinner = ProgressBar::new_spinner();
-    spinner.set_message("Initializing rivers data collection...");
+    spinner.set_message("Initializing...");
     spinner.enable_steady_tick(std::time::Duration::from_millis(100));
 
     // デフォルト値の設定
-    spinner.set_message("Setting default values...");
+    let CollectArgs {
+        mokuroku,
+        batch: batch_size,
+        line,
+        category,
+        river_base_url,
+        dem_base_url,
+        zoom_lv,
+    } = args;
     let mokuroku = canonicalize(mokuroku).expect("Failed to canonicalize mokuroku file path");
     let rv_ctg_flags = Arc::new(parse_flag_list::<RvCtgFlags>(&category));
     let rv_rcl_flags = Arc::new(parse_flag_list::<RvRclFlags>(&line));
-    let river_base_url = Arc::new(river_base_url);
-    let dem_base_url = Arc::new(dem_base_url);
-    let dem_zoom_lv = ZoomLv::parse(zoom_lv).expect("Failed to parse ZoomLv");
+    let river_base_url = Arc::new(river_base_url.clone());
+    let dem_base_url = Arc::new(dem_base_url.clone());
+    let dem_zoom_lv = ZoomLv::parse(*zoom_lv).expect("Failed to parse ZoomLv");
     let dir_path = mokuroku
         .parent()
         .expect("Failed to get mokuroku's parent directory");
 
     spinner.set_message("Reading mokuroku.csv...");
     let tiles = read_tile_list(&mokuroku);
-    spinner.finish_and_clear();
-
-    // ProgressBarの設定
-    let pb = ProgressBar::new(tiles.len() as u64);
-    pb.set_message("Starting to process river centerline tiles...");
-    pb.set_style(
-        ProgressStyle::with_template("{msg}\n[{elapsed_precise}] {wide_bar} {pos}/{len} ({eta_precise})")
-            .unwrap(),
-    );
 
     // 標高データのキャッシュ
     let alti_cache = Cache::<(u32, u32), Arc<Vec<f32>>>::builder()
@@ -86,7 +79,7 @@ pub async fn collect_river_data(
     );
 
     // バッチごとにタイルを処理
-    for (i, batch) in tiles.chunks(batch_size).enumerate() {
+    for (i, batch) in tiles.chunks(*batch_size).enumerate() {
         let river_base_url = river_base_url.clone();
         pb.set_message(format!(
             "Fetching data for batch {} of {}...",
