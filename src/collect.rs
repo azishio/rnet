@@ -40,8 +40,8 @@ pub async fn collect_river_data(args: &CollectArgs) {
         zoom_lv,
     } = args;
     let mokuroku = canonicalize(mokuroku).expect("Failed to canonicalize mokuroku file path");
-    let rv_ctg_flags = Arc::new(parse_flag_list::<RvCtgFlags>(&category));
-    let rv_rcl_flags = Arc::new(parse_flag_list::<RvRclFlags>(&line));
+    let rv_ctg_flags = Arc::new(parse_flag_list::<RvCtgFlags>(category));
+    let rv_rcl_flags = Arc::new(parse_flag_list::<RvRclFlags>(line));
     let river_base_url = Arc::new(river_base_url.clone());
     let dem_base_url = Arc::new(dem_base_url.clone());
     let dem_zoom_lv = ZoomLv::parse(*zoom_lv).expect("Failed to parse ZoomLv");
@@ -50,7 +50,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
     let tiles = read_tile_list(&mokuroku);
 
     // 標高データのキャッシュ
-    let alti_cache = Cache::<(u32, u32), Arc<Vec<f32>>>::builder()
+    let altitude_cache = Cache::<(u32, u32), Arc<Vec<f32>>>::builder()
         .max_capacity(50)
         .build_with_hasher(FxBuildHasher);
 
@@ -69,7 +69,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
 
     // ProgressBarの設定
     let pb = ProgressBar::new(tiles.len() as u64);
-    pb.set_message("Starting to process river centerline tiles...");
+    pb.set_message("Starting to process river center line tiles...");
     pb.set_style(
         ProgressStyle::with_template("{msg}\n[{elapsed_precise}] {wide_bar} {pos}/{len} ({eta_precise})")
             .unwrap(),
@@ -85,7 +85,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
             &lines,
             dem_base_url.clone(),
             dem_zoom_lv,
-            alti_cache.clone(),
+            altitude_cache.clone(),
             &client,
         )
             .await;
@@ -359,7 +359,7 @@ async fn fetch_ml(
 
                         let line = match f.geometry.unwrap().value {
                             Value::LineString(v) => {
-                                let line = v
+                                v
                                     .into_iter()
                                     .map(|p| {
                                         let long = p[0];
@@ -370,9 +370,7 @@ async fn fetch_ml(
 
                                         (h, long, lat)
                                     })
-                                    .collect::<Vec<_>>();
-
-                                line
+                                    .collect::<Vec<_>>()
                             }
                             _ => unreachable!(),
                         };
@@ -578,7 +576,7 @@ async fn write_sections_header(path: &Path) {
 }
 
 /// リレーション情報の書き込み
-async fn write_sections(path: &Path, lines: &Vec<Section>) {
+async fn write_sections(path: &Path, lines: &[Section]) {
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
@@ -588,7 +586,7 @@ async fn write_sections(path: &Path, lines: &Vec<Section>) {
         .expect("Failed to create river_section.csv");
 
     let buf = lines
-        .into_iter()
+        .iter()
         .map(|(id1, id2, dist)| {
             [
                 id1.to_string(),
@@ -612,7 +610,7 @@ async fn write_sections(path: &Path, lines: &Vec<Section>) {
 
 /// ノード情報の重複削除
 fn deduplicate_nodes(nodes_path: &Path) {
-    let mut df_deduplicated = LazyCsvReader::new(&nodes_path)
+    let mut df_deduplicated = LazyCsvReader::new(nodes_path)
         .with_has_header(true)
         .finish()
         .expect("Failed to read river_node.csv")
@@ -627,7 +625,7 @@ fn deduplicate_nodes(nodes_path: &Path) {
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&nodes_path)
+        .open(nodes_path)
         .expect("Failed to create river_node.csv");
     let buf = std::io::BufWriter::new(file);
 
