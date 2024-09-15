@@ -1,5 +1,5 @@
 use std::fs::canonicalize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -110,6 +110,10 @@ pub async fn collect_river_data(args: &CollectArgs) {
     // ノード情報の重複削除
     spinner.set_message("Deduplicating nodes...");
     deduplicate_nodes(&nodes_path);
+
+    // 日本の緯度経度のAABBから4点を追記する
+    spinner.set_message("Appending bounds...");
+    append_bounds(nodes_path).await;
     spinner.finish_with_message("Process completed!");
 }
 
@@ -630,4 +634,45 @@ fn deduplicate_nodes(nodes_path: &Path) {
     CsvWriter::new(buf)
         .finish(&mut df_deduplicated)
         .expect("Failed to write river_node.csv");
+}
+
+// 日本の緯度経度のAABBから4点を追記する
+async fn append_bounds(path: PathBuf) {
+    let max_long: f64 = 153. + 59. / 60. + 19. / 3600.;
+    let min_long: f64 = 122. + 55. / 60. + 57. / 3600.;
+    let max_lat: f64 = 45. + 33. / 60. + 26. / 3600.;
+    let min_lat: f64 = 20. + 25. / 60. + 31. / 3600.;
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .await
+        .expect("Failed to create river_node.csv");
+    let buf =
+        [
+            (calc_hilbert_index(max_long, max_lat), min_long, min_lat, 0.),
+            (calc_hilbert_index(min_long, max_lat), max_long, min_lat, 0.),
+            (calc_hilbert_index(max_long, min_lat), min_long, max_lat, 0.),
+            (calc_hilbert_index(min_long, min_lat), max_long, max_lat, 0.),
+        ]
+            .iter()
+            .map(|(id, long, lat, altitude)| {
+                let location = format!("\"{{longitude:{long},latitude:{lat}}}\"");
+                [
+                    id.to_string(),
+                    location,
+                    altitude.to_string(),
+                    "BoundNode".to_string(),
+                ]
+                    .join(",")
+                    + "\n"
+            })
+            .collect::<Vec<_>>()
+            .concat();
+
+    file.write_all(buf.as_ref())
+        .await
+        .expect("Failed to write river_node.csv");
+    file.flush().await.expect("Failed to flush river_node.csv");
 }

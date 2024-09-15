@@ -6,8 +6,6 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use spade::{DelaunayTriangulation, HasPosition, Point2, Triangulation, validate_vertex};
 
-use crate::collect::calc_hilbert_index;
-
 struct RiverNode {
     pub id: u32,
     long: f64,
@@ -85,24 +83,7 @@ pub(crate) fn collect_delaunay(nodes_path: &String) {
 
 
     spinner.set_message("Reading nodes...");
-    let nodes = {
-        let max_long: f64 = 153. + 59. / 60. + 19. / 3600.;
-        let min_long: f64 = 122. + 55. / 60. + 57. / 3600.;
-        let max_lat: f64 = 45. + 33. / 60. + 26. / 3600.;
-        let min_lat: f64 = 20. + 25. / 60. + 31. / 3600.;
-
-        let mut bounds = vec![
-            RiverNode::new(calc_hilbert_index(max_long, max_lat), min_long, min_lat),
-            RiverNode::new(calc_hilbert_index(min_long, max_lat), max_long, min_lat),
-            RiverNode::new(calc_hilbert_index(max_long, min_lat), min_long, max_lat),
-            RiverNode::new(calc_hilbert_index(min_long, min_lat), max_long, max_lat),
-        ];
-
-        let mut read = read_nodes(nodes_path);
-        read.append(&mut bounds);
-
-        read
-    };
+    let nodes = read_nodes(nodes_path);
 
     spinner.set_message("Calculating Delaunay triangulation...");
     let triangulation = DelaunayTriangulation::<RiverNode>::bulk_load(nodes).expect("Failed to create Delaunay triangulation");
