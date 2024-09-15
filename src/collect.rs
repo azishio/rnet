@@ -55,13 +55,13 @@ pub async fn collect_river_data(args: &CollectArgs) {
         .build_with_hasher(FxBuildHasher);
 
     let nodes_path = mokuroku.with_file_name("river_node.csv");
-    let sections_path = mokuroku.with_file_name("river_section.csv");
+    let links_path = mokuroku.with_file_name("river_link.csv");
 
     // ヘッダーの書き込み
     {
-        spinner.set_message("Writing headers for nodes and sections...");
+        spinner.set_message("Writing headers for nodes and links...");
         write_nodes_header(&nodes_path).await;
-        write_sections_header(&sections_path).await;
+        write_link_header(&links_path).await;
         spinner.finish_and_clear();
     }
 
@@ -80,7 +80,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
         let river_base_url = river_base_url.clone();
         let lines = fetch_ml(river_base_url, batch, *rv_rcl_flags, *rv_ctg_flags, &client).await;
 
-        let sections = collect_sections(&lines);
+        let links = collect_links(&lines);
         let nodes = collect_nodes(
             &lines,
             dem_base_url.clone(),
@@ -91,7 +91,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
             .await;
 
         write_nodes(&nodes_path, &nodes).await;
-        write_sections(&sections_path, &sections).await;
+        write_links(&links_path, &links).await;
 
         pb.inc(batch.len() as u64);
 
@@ -388,17 +388,17 @@ async fn fetch_ml(
 }
 
 /// (StartID, EndID, Distance)
-type Section = (u32, u32, f64);
+type Link = (u32, u32, f64);
 
 /// フェッチした中心線情報から繋がりを収集
-fn collect_sections(lines: &Vec<FetchedLine>) -> Vec<Section> {
+fn collect_links(lines: &Vec<FetchedLine>) -> Vec<Link> {
     lines
         .into_par_iter()
         .flat_map(|line| {
             line.windows(2)
-                .map(|section| {
-                    let (id1, long1, lat1) = section[0];
-                    let (id2, long2, lat2) = section[1];
+                .map(|link| {
+                    let (id1, long1, lat1) = link[0];
+                    let (id2, long2, lat2) = link[1];
 
                     let dist = haversine_distance(
                         long1.to_radians(),
@@ -556,34 +556,34 @@ async fn write_nodes(path: &Path, lines: &[RiverNode]) {
 }
 
 /// ヘッダーの書き込み
-async fn write_sections_header(path: &Path) {
+async fn write_link_header(path: &Path) {
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .open(path)
         .await
-        .expect("Failed to create river_section.csv");
+        .expect("Failed to create river_link.csv");
 
     let header = [":START_ID", ":END_ID", ":TYPE", "length"].join(",") + "\n";
 
     file.write_all(header.as_ref())
         .await
-        .expect("Failed to write header to river_section.csv");
+        .expect("Failed to write header to river_link.csv");
     file.flush()
         .await
-        .expect("Failed to flush river_section.csv");
+        .expect("Failed to flush river_link.csv");
 }
 
 /// リレーション情報の書き込み
-async fn write_sections(path: &Path, lines: &[Section]) {
+async fn write_links(path: &Path, lines: &[Link]) {
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .append(true)
         .open(path)
         .await
-        .expect("Failed to create river_section.csv");
+        .expect("Failed to create river_link.csv");
 
     let buf = lines
         .iter()
@@ -591,7 +591,7 @@ async fn write_sections(path: &Path, lines: &[Section]) {
             [
                 id1.to_string(),
                 id2.to_string(),
-                "RIVER_SECTION".to_string(),
+                "RIVER_LINK".to_string(),
                 dist.to_string(),
             ]
                 .join(",")
@@ -602,10 +602,10 @@ async fn write_sections(path: &Path, lines: &[Section]) {
 
     file.write_all(buf.as_ref())
         .await
-        .expect("Failed to write river_section.csv");
+        .expect("Failed to write river_link.csv");
     file.flush()
         .await
-        .expect("Failed to flush river_section.csv");
+        .expect("Failed to flush river_link.csv");
 }
 
 /// ノード情報の重複削除
