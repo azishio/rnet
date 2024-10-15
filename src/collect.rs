@@ -289,12 +289,16 @@ fn read_tile_list(path: &Path, aabb: Option<AABB>) -> Vec<String> {
                 let tile_x = zxy.next().unwrap().parse::<u32>().unwrap();
                 let tile_y = zxy.next().unwrap().parse::<u32>().unwrap();
 
-                let (pixel_x, pixel_y) = (tile_x * 256, tile_y * 256);
+                let (pixel_x_min, pixel_y_min) = (tile_x * 256, tile_y * 256);
+                let (pexel_x_max, pixel_y_max) = (pixel_x_min + 256, pixel_y_min + 256);
 
-                let (long, lat) = pixel2ll((pixel_x, pixel_y), z);
-                let (long, lat) = (long.to_degrees(), lat.to_degrees());
+                let (long_min, lat_min) = pixel2ll((pixel_x_min, pixel_y_min), z);
+                let (long_max, lat_max) = pixel2ll((pexel_x_max, pixel_y_max), z);
 
-                aabb.min_long <= long && long <= aabb.max_long && aabb.min_lat <= lat && lat <= aabb.max_lat
+                let (long_min, long_max) = (long_min.to_degrees(), long_max.to_degrees());
+                let (lat_min, lat_max) = (lat_min.to_degrees(), lat_max.to_degrees());
+
+                aabb.min_long <= long_min && long_max <= aabb.max_long && aabb.min_lat <= lat_min && lat_max <= aabb.max_lat
             })
             .collect()
     } else {
