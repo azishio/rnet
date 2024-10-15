@@ -8,13 +8,13 @@ fi
 
 # run docker container
 
-docker run --rm --name rnet -v "${PWD}:/data" -it ghcr.io/azishio/rnet:main collect "$@"
+docker run --rm --name rnet -v "${PWD}:/data" -it ghcr.io/azishio/rnet:latest collect "$@"
 # -h や --help出会った場合は、ヘルプを表示して終了
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   exit 0
 fi
 
-docker run --rm --name rnet -v "${PWD}:/data" -it ghcr.io/azishio/rnet:main delaunay -i ./river_node.csv
+docker run --rm --name rnet -v "${PWD}:/data" -it ghcr.io/azishio/rnet:latest delaunay -i ./river_node.csv
 
 
 
