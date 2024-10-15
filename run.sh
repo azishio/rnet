@@ -3,7 +3,7 @@ set -eu
 
 # download mokuroku.csv
 if [ ! -f mokuroku.csv ]; then
-  curl -L https://cyberjapandata.gsi.go.jp/xyz/experimental_rvrcl/mokuroku.csv.gz | gzip -d > mokuroku.csv
+  curl -#fL https://cyberjapandata.gsi.go.jp/xyz/experimental_rvrcl/mokuroku.csv.gz | gzip -d > mokuroku.csv
 fi
 
 # run docker container
