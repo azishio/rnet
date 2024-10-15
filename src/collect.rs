@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use bitflags::{bitflags, Flags};
-use coordinate_transformer::{ll2pixel, ZoomLv};
+use coordinate_transformer::{ll2pixel, pixel2ll, ZoomLv};
 use csv::Reader;
 use futures::future;
 use geojson::{FeatureCollection, JsonObject, Value};
@@ -38,6 +38,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
         river_base_url,
         dem_base_url,
         zoom_lv,
+        aabb,
     } = args;
     let mokuroku = canonicalize(mokuroku).expect("Failed to canonicalize mokuroku file path");
     let rv_ctg_flags = Arc::new(parse_flag_list::<RvCtgFlags>(category));
@@ -45,9 +46,10 @@ pub async fn collect_river_data(args: &CollectArgs) {
     let river_base_url = Arc::new(river_base_url.clone());
     let dem_base_url = Arc::new(dem_base_url.clone());
     let dem_zoom_lv = ZoomLv::parse(*zoom_lv).expect("Failed to parse ZoomLv");
+    let aabb = aabb.clone().map(|s| s.parse::<AABB>().expect("Failed to parse AABB"));
 
     spinner.set_message("Reading mokuroku.csv...");
-    let tiles = read_tile_list(&mokuroku);
+    let tiles = read_tile_list(&mokuroku, aabb);
 
     // 標高データのキャッシュ
     let altitude_cache = Cache::<(u32, u32), Arc<Vec<f32>>>::builder()
@@ -113,7 +115,7 @@ pub async fn collect_river_data(args: &CollectArgs) {
 
     // 日本の緯度経度のAABBから4点を追記する
     spinner.set_message("Appending bounds...");
-    append_bounds(nodes_path).await;
+    append_bounds(nodes_path, aabb).await;
     spinner.finish_with_message("Process completed!");
 }
 
@@ -214,11 +216,57 @@ fn parse_flag_list<T: FromStr + Flags>(s: &str) -> T {
     list.fold(T::empty(), |acc, x| acc.union(x))
 }
 
+/// タイルをフェッチする範囲を表す
+#[derive(Debug, Clone, Copy)]
+struct AABB {
+    min_long: f64,
+    max_long: f64,
+    min_lat: f64,
+    max_lat: f64,
+}
+
+impl FromStr for AABB {
+    type Err = anyhow::Error;
+
+    ///　コンマで区切られた文字列からAABBをパース(min_long,max_long,min_lat,max_lat)
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut iter = s.split(",");
+
+        let min_long = iter.next().unwrap().parse::<f64>()?;
+        let max_long = iter.next().unwrap().parse::<f64>()?;
+        let min_lat = iter.next().unwrap().parse::<f64>()?;
+        let max_lat = iter.next().unwrap().parse::<f64>()?;
+
+        if min_lat >= max_lat || min_long >= max_long {
+            return Err(anyhow!("Invalid AABB: {:?}", s));
+        }
+
+        Ok(Self {
+            min_long,
+            max_long,
+            min_lat,
+            max_lat,
+        })
+    }
+}
+
+impl Default for AABB {
+    /// 日本の緯度経度のAABB
+    fn default() -> Self {
+        Self {
+            min_long: 153. + 59. / 60. + 19. / 3600.,
+            max_long: 122. + 55. / 60. + 57. / 3600.,
+            min_lat: 45. + 33. / 60. + 26. / 3600.,
+            max_lat: 20. + 25. / 60. + 31. / 3600.,
+        }
+    }
+}
+
 /// CSVファイルからタイルリストを読み込む
 /// タイルのURLの後半部分のみを格納したリストを返す
 /// 例: https://example.com/{z}/{x}/{y}.geojson -> {z}/{x}/{y}.geojson
-fn read_tile_list(path: &Path) -> Vec<String> {
-    Reader::from_path(path)
+fn read_tile_list(path: &Path, aabb: Option<AABB>) -> Vec<String> {
+    let tile_list = Reader::from_path(path)
         .unwrap_or_else(|_| panic!("Failed to read mokuroku CSV file at {:?}", path))
         .into_records()
         .filter_map(|record| {
@@ -229,8 +277,29 @@ fn read_tile_list(path: &Path) -> Vec<String> {
             } else {
                 None
             }
-        })
-        .collect::<Vec<_>>()
+        });
+
+    if let Some(aabb) = aabb {
+        tile_list
+            .filter(|url| {
+                let url = url.as_str();
+                let mut zxy = url.split(".").next().unwrap().split('/');
+
+                let z = zxy.next().unwrap().parse::<ZoomLv>().unwrap();
+                let tile_x = zxy.next().unwrap().parse::<u32>().unwrap();
+                let tile_y = zxy.next().unwrap().parse::<u32>().unwrap();
+
+                let (pixel_x, pixel_y) = (tile_x * 256, tile_y * 256);
+
+                let (long, lat) = pixel2ll((pixel_x, pixel_y), z);
+                let (long, lat) = (long.to_degrees(), lat.to_degrees());
+
+                aabb.min_long <= long && long <= aabb.max_long && aabb.min_lat <= lat && lat <= aabb.max_lat
+            })
+            .collect()
+    } else {
+        tile_list.collect()
+    }
 }
 
 /// geojsonのプロパティからRvRclTypeとRivCtgを読み込む
@@ -634,12 +703,14 @@ fn deduplicate_nodes(nodes_path: &Path) {
         .expect("Failed to write river_node.csv");
 }
 
-// 日本の緯度経度のAABBから4点を追記する
-async fn append_bounds(path: PathBuf) {
-    let max_long: f64 = 153. + 59. / 60. + 19. / 3600.;
-    let min_long: f64 = 122. + 55. / 60. + 57. / 3600.;
-    let max_lat: f64 = 45. + 33. / 60. + 26. / 3600.;
-    let min_lat: f64 = 20. + 25. / 60. + 31. / 3600.;
+// AABBから4点を追記する
+async fn append_bounds(path: PathBuf, aabb: Option<AABB>) {
+    let AABB {
+        min_long,
+        max_long,
+        min_lat,
+        max_lat,
+    } = aabb.unwrap_or_default();
 
     let mut file = OpenOptions::new()
         .create(true)

@@ -59,6 +59,10 @@ struct CollectArgs {
     /// 標高を検索する際に参照するDEMデータのズームレベル
     #[arg(short, long, default_value_t = 14)]
     zoom_lv: u8,
+
+    /// データを取得する範囲の緯度経度　ex) "134.0,135.0,34.0,35.0"
+    #[arg(short, long)]
+    aabb: Option<String>,
 }
 
 #[tokio::main]
