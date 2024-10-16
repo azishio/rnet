@@ -665,7 +665,7 @@ async fn write_links(path: &Path, lines: &[Link]) {
                 id1.to_string(),
                 id2.to_string(),
                 "RIVER_LINK".to_string(),
-                dist.to_string(),
+                format!("{:.3}", dist),
             ]
                 .join(",")
                 + "\n"
