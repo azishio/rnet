@@ -583,7 +583,7 @@ async fn write_nodes_header(path: &Path) {
         .expect("Failed to create river_node.csv");
 
     let header = [
-        "hilbert18:int:ID",
+        "hilbert18:ID",
         "location:point{crs:WGS-84}",
         "altitude:float",
         ":LABEL",
