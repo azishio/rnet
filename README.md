@@ -11,3 +11,13 @@ Dockerがインストールされていることが前提です。
 curl -o run_rnet.sh https://raw.githubusercontent.com/azishio/rnet/refs/heads/main/run.sh
 bash ./run_rnet.sh
 ```
+
+出力されるファイルは以下の通りです。
+
+| ファイル名                        | 内容                    | 追加されるノードのラベル     | 追加されるリレーションシップのタイプ |
+|------------------------------|-----------------------|------------------|--------------------|
+| river_node.csv               | 河川の幾何学的特徴点            | RiverNode        |                    |
+| river_link.csv               | 河川の幾何学的特徴点のつながり       |                  | RIVER_LINK         |
+| tile.csv                     | river_nodeが存在するマップタイル | TileZ (Zはズームレベル) |                    |
+| tile_family_relationship.csv | ズームレベルが異なるマップタイルの親子関係 |                  | CHILD              |
+| tile_membership.csv          | 河川の幾何学的特徴点とタイルの関係     |                  | MEMBER             |
