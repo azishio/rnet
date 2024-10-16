@@ -359,13 +359,13 @@ pub fn calc_hilbert_index(long: f64, lat: f64) -> u32 {
 }
 
 /// 2地点間のハヴァーサイン距離を計算
-fn haversine_distance(long1: f64, lat1: f64, long2: f64, lat2: f64) -> f64 {
+fn haversine_distance_m(long1: f64, lat1: f64, long2: f64, lat2: f64) -> f64 {
     let d_long = long2 - long1;
     let d_lat = lat2 - lat1;
     let a = (d_lat / 2.).sin().powi(2);
     let b = lat1.cos() * lat2.cos() * (d_long / 2.).sin().powi(2);
     let r = 6371.;
-    2. * r * (a + b).sqrt().asin()
+    2. * r * (a + b).sqrt().asin() * 1000.
 }
 
 /// (ヒルベルト値, 経度, 緯度, 標高)
@@ -473,7 +473,7 @@ fn collect_links(lines: &Vec<FetchedLine>) -> Vec<Link> {
                     let (id1, long1, lat1) = link[0];
                     let (id2, long2, lat2) = link[1];
 
-                    let dist = haversine_distance(
+                    let dist = haversine_distance_m(
                         long1.to_radians(),
                         lat1.to_radians(),
                         long2.to_radians(),
