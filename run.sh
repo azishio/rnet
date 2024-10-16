@@ -14,7 +14,7 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
   exit 0
 fi
 
-docker run --rm --name rnet -v "${PWD}:/data" -it ghcr.io/azishio/rnet:latest delaunay -i ./river_node.csv
+docker run --rm --name rnet -v "${PWD}:/data" -it ghcr.io/azishio/rnet:latest tilelocate -i ./river_node.csv
 
 
 
