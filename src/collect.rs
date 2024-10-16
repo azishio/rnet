@@ -583,9 +583,9 @@ async fn write_nodes_header(path: &Path) {
         .expect("Failed to create river_node.csv");
 
     let header = [
-        "hilbert18:ID",
+        "hilbert18:int:ID",
         "location:point{crs:WGS-84}",
-        "altitude",
+        "altitude:float",
         ":LABEL",
     ]
         .join(",")
@@ -638,7 +638,7 @@ async fn write_link_header(path: &Path) {
         .await
         .expect("Failed to create river_link.csv");
 
-    let header = [":START_ID", ":END_ID", ":TYPE", "length"].join(",") + "\n";
+    let header = [":START_ID", ":END_ID", ":TYPE", "length:float"].join(",") + "\n";
 
     file.write_all(header.as_ref())
         .await
