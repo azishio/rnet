@@ -374,6 +374,137 @@ type RiverNode = (u32, f64, f64, f32);
 /// Vec<(ヒルベルト値, 経度, 緯度)
 type FetchedLine = Vec<(u32, f64, f64)>;
 
+async fn fetch_single_ml(
+    url: String,
+    rv_rcl_flags: RvRclFlags,
+    river_flags: RvCtgFlags,
+    client: &Client,
+) -> anyhow::Result<Vec<FetchedLine>> {
+    let client = client.clone();
+
+    // HTTPリクエストの送信
+    let res = client.get(&url).send().await.map_err(|e| {
+        anyhow!(
+            "Failed to fetch tile data from URL: {}: {:#?}.",
+            url,
+            e
+        )
+    })?;
+
+    // レスポンスボディの取得
+    let body = res.text().await.map_err(|e| {
+        anyhow!(
+            "Failed to parse response body as text from URL: {}: {:#?}",
+            url,
+            e
+        )
+    })?;
+
+    // GeoJSONのパース
+    let geojson = body.parse::<geojson::GeoJson>().map_err(|e| {
+        anyhow!(
+            "Failed to parse GeoJSON from response at URL: {}: {:#?}: {:#?}",
+            url,
+            e,
+            body
+        )
+    })?;
+
+    // FeatureCollectionへの変換
+    let fc = FeatureCollection::try_from(geojson).map_err(|e| {
+        anyhow!(
+            "Failed to convert GeoJSON to FeatureCollection at URL: {}: {:#?}",
+            url,
+            e
+        )
+    })?;
+
+    let mut result = Vec::new();
+
+    // 各フィーチャの処理
+    for feature in fc.features {
+        // プロパティの取得
+        let properties = feature.properties.ok_or_else(|| {
+            anyhow!(
+                "Failed to get properties from GeoJSON feature at URL: {}",
+                url
+            )
+        })?;
+
+        let (rv_rcl_type, riv_ctg) = read_property(properties);
+
+        // フラグのチェック
+        if !rv_rcl_flags.contains(rv_rcl_type) || !river_flags.contains(riv_ctg) {
+            continue;
+        }
+
+        // ジオメトリの取得
+        let geometry = feature.geometry.ok_or_else(|| {
+            anyhow!(
+                "Failed to get geometry from GeoJSON feature at URL: {}",
+                url
+            )
+        })?;
+
+        // ジオメトリのタイプチェックと処理
+        let line = match geometry.value {
+            Value::LineString(coords) => {
+                coords
+                    .into_iter()
+                    .map(|p| {
+                        if p.len() < 2 {
+                            return Err(anyhow!(
+                                "Invalid coordinate pair in LineString at URL: {}",
+                                url
+                            ));
+                        }
+                        let long = p[0];
+                        let lat = p[1];
+                        let h = calc_hilbert_index(long, lat);
+                        Ok((h, long, lat))
+                    })
+                    .collect::<anyhow::Result<Vec<_>>>()?
+            }
+            other => {
+                return Err(anyhow!(
+                    "Unexpected geometry type {:?} in GeoJSON feature at URL: {}",
+                    other,
+                    url
+                ))
+            }
+        };
+
+        result.push(line);
+    }
+
+    Ok(result)
+}
+
+async fn fetch_single_ml_with_retry(
+    url: String,
+    rv_rcl_flags: RvRclFlags,
+    river_flags: RvCtgFlags,
+    client: &Client,
+) -> Vec<FetchedLine> {
+    const MAX_RETRY: usize = 5;
+
+    let mut current_retry = 0;
+    loop {
+        let result = fetch_single_ml(url.clone(), rv_rcl_flags, river_flags, client).await;
+        match result {
+            Ok(result) => return result,
+            Err(e) => {
+                eprintln!("Error: {:#?}", e);
+                current_retry += 1;
+                if current_retry >= MAX_RETRY {
+                    eprintln!("Failed to fetch tile data from URL: {}", url);
+                    return Vec::new();
+                }
+            }
+        }
+    }
+}
+
 /// 主線のフェッチとフィルタリング
 async fn fetch_ml(
     river_base_url: Arc<String>,
@@ -385,73 +516,8 @@ async fn fetch_ml(
     let futures = url_part_list
         .iter()
         .map(|url_part| {
-            let river_base_url = river_base_url.clone();
-            async move {
-                let url = format!("{river_base_url}{url_part}");
-                let client = client.clone();
-
-                let res = client.get(&url).send().await.unwrap_or_else(|e| {
-                    panic!("Failed to fetch tile data from URL: {}: {:#?}.", url, e, )
-                });
-
-                let body = res.text().await.unwrap_or_else(|e| {
-                    panic!(
-                        "Failed to parse response body as text from URL: {}: {:#?}",
-                        url, e
-                    )
-                });
-
-                let geojson = body.parse::<geojson::GeoJson>().unwrap_or_else(|e| {
-                    panic!(
-                        "Failed to parse GeoJSON from response at URL: {}: {:#?}",
-                        url, e
-                    )
-                });
-
-                let fc = FeatureCollection::try_from(geojson).unwrap_or_else(|e| {
-                    panic!(
-                        "Failed to convert GeoJSON to FeatureCollection at URL: {}: {:#?}",
-                        url, e
-                    )
-                });
-
-                fc.features
-                    .into_iter()
-                    .filter_map(move |f| {
-                        let p = f.properties.unwrap_or_else(|| {
-                            panic!(
-                                "Failed to get properties from GeoJSON feature at URL: {}",
-                                url
-                            )
-                        });
-                        let (rv_rcl_type, riv_ctg) = read_property(p);
-
-                        if !rv_rcl_flags.contains(rv_rcl_type) || !river_flags.contains(riv_ctg) {
-                            return None;
-                        }
-
-                        let line = match f.geometry.unwrap().value {
-                            Value::LineString(v) => {
-                                v
-                                    .into_iter()
-                                    .map(|p| {
-                                        let long = p[0];
-                                        let lat = p[1];
-
-                                        let h =
-                                            calc_hilbert_index(long, lat);
-
-                                        (h, long, lat)
-                                    })
-                                    .collect::<Vec<_>>()
-                            }
-                            _ => unreachable!(),
-                        };
-
-                        Some(line)
-                    })
-                    .collect::<Vec<_>>()
-            }
+            let url = format!("{river_base_url}{url_part}");
+            fetch_single_ml_with_retry(url, rv_rcl_flags, river_flags, client)
         })
         .collect::<Vec<_>>();
 
