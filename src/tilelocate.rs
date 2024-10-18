@@ -10,13 +10,13 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 struct RiverNode {
-    pub id: u32,
+    pub id: u64,
     long: f64,
     lat: f64,
 }
 
 impl RiverNode {
-    fn new(id: u32, long: f64, lat: f64) -> Self {
+    fn new(id: u64, long: f64, lat: f64) -> Self {
         Self { id, long, lat }
     }
 }
@@ -57,7 +57,7 @@ fn read_nodes(nodes_path: PathBuf) -> Vec<RiverNode> {
                 }
 
                 let mut iter = line.split(",");
-                let hilbert = iter.next().unwrap().parse::<u32>().unwrap();
+                let hilbert = iter.next().unwrap().parse::<u64>().unwrap();
 
 
                 let long = iter.next().unwrap().chars().filter(|&c| c.is_ascii_digit() || c == '.').collect::<String>().parse::<f64>().unwrap();
@@ -105,7 +105,7 @@ pub(crate) fn tile_locator(nodes_path: &String, max_zoomlv: ZoomLv) {
 
 
     // HashMap<(タイルX, タイルY), Vec<ノードID>>を作成
-    let mut tile_and_node = HashMap::<(u32, u32), Vec<u32>, FxBuildHasher>::with_hasher(FxBuildHasher::default());
+    let mut tile_and_node = HashMap::<(u32, u32), Vec<u64>, FxBuildHasher>::with_hasher(FxBuildHasher::default());
 
     // タイルに三角形がかぶっていたら、その三角形のノードIDを記録
     triangulation.inner_faces().for_each(|face| {
