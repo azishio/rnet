@@ -352,10 +352,10 @@ fn read_property(p: JsonObject) -> (RvRclFlags, RvCtgFlags) {
 }
 
 /// ヒルベルトインデックスを計算
-pub fn calc_hilbert_index(long: f64, lat: f64) -> u32 {
+pub fn calc_hilbert_index(long: f64, lat: f64) -> usize {
     let (x, y) = ll2pixel((long.to_radians(), lat.to_radians()), ZoomLv::Lv18);
     let h = [x as usize, y as usize].to_hilbert_index(26);
-    h as u32
+    h
 }
 
 /// 2地点間のハヴァーサイン距離を計算
@@ -369,10 +369,10 @@ fn haversine_distance_m(long1: f64, lat1: f64, long2: f64, lat2: f64) -> f64 {
 }
 
 /// (ヒルベルト値, 経度, 緯度, 標高)
-type RiverNode = (u32, f64, f64, f32);
+type RiverNode = (usize, f64, f64, f32);
 
 /// Vec<(ヒルベルト値, 経度, 緯度)
-type FetchedLine = Vec<(u32, f64, f64)>;
+type FetchedLine = Vec<(usize, f64, f64)>;
 
 async fn fetch_single_ml(
     url: String,
@@ -527,7 +527,7 @@ async fn fetch_ml(
 }
 
 /// (StartID, EndID, Distance)
-type Link = (u32, u32, f64);
+type Link = (usize, usize, f64);
 
 /// フェッチした中心線情報から繋がりを収集
 fn collect_links(lines: &Vec<FetchedLine>) -> Vec<Link> {
